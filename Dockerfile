@@ -1,15 +1,29 @@
 #
-# Build stage
+# Building stage
 #
-FROM maven:3.6.0-jdk-11-slim AS build
-COPY src /home/app/src
-COPY pom.xml /home/app
-RUN mvn -f /home/app/pom.xml clean package
-
+FROM maven:3.8.5-openjdk-17-slim AS builder
+WORKDIR /app
+COPY src ./src
+COPY pom.xml ./
+RUN mvn -f pom.xml clean package
 #
-# Package stage
+# Base image creation stage
 #
-FROM openjdk:11-jre-slim
-COPY --from=build /home/app/target/java-maven-app-*.jar /usr/local/lib/
-EXPOSE 8081
-CMD java -jar /usr/local/lib/java-maven-app-*.jar
+FROM alpine:latest AS base
+RUN  apk update \
+    && apk upgrade \
+    && apk add ca-certificates \
+    && update-ca-certificates \
+    && echo http://dl-cdn.alpinelinux.org/alpine/v3.6/main >> /etc/apk/repositories \
+    && echo http://dl-cdn.alpinelinux.org/alpine/v3.6/community >> /etc/apk/repositories \
+    && apk add --update coreutils && rm -rf /var/cache/apk/*   \
+    && apk add --update openjdk17-jre-headless \
+    && apk add --no-cache nss \
+    && rm -rf /var/cache/apk/*
+#
+# Packaging stage
+#
+FROM base
+WORKDIR /app
+COPY --from=builder /app/target/java-maven-app-*.jar ./
+CMD java -jar ./java-maven-app-*.jar
